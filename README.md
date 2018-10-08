@@ -16,7 +16,7 @@ The usual port is 27017 and you can check that it is open by looking at ```http:
 
 *In the case of a Docker install* you probably have to edit the configuration to open the port. Open the file ```docker-compose.yml``` and in the part related to MongoDB, add the following lines:
 ```yml
-	ports:
+    ports:
       - "27017:27017"
 ```
 This part of the file will probably look like that:
