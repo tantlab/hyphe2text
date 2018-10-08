@@ -5,6 +5,7 @@ import jsonrpclib
 import pymongo
 import csv
 import os
+import re
 
 settings = {
 	'mongodb_port': 27017,
@@ -14,7 +15,7 @@ settings = {
 	'webentities_in': True,
 	'webentities_out': True,
 	'webentities_undecided': True,
-	'webentities_discovered': False,
+	'webentities_discovered': True,
 	'output_path': 'data', # Note: a folder named as the corpus id will be created
 }
 
@@ -23,11 +24,11 @@ we_metadata = [
 	'name',
 	'status',
 	'crawled',
-	'prefixes',
 	'homepage',
+	'prefixes',
 	'startpages',
-	'lastModificationDate',
-	'creationDate',
+	# 'lastModificationDate',
+	# 'creationDate',
 	'tags',
 ]
 
@@ -50,6 +51,7 @@ page_metadata = [
 # FUNCTIONS
 def processWE(we_writer, we):
 	elements = [we[k] if k in we else '' for k in we_metadata]
+	elements += [we_to_filename(we)]
 	we_writer.writerow(elements)
 
 def processPage(page_writer, page):
@@ -63,6 +65,20 @@ def checkPath(filename):
 	    except OSError as exc: # Guard against race condition
 	        if exc.errno != errno.EEXIST:
 	            raise
+
+def slugify(value):
+	"""
+	Normalizes string, converts to lowercase, removes non-alpha characters,
+	and converts spaces to hyphens.
+	"""
+	import unicodedata
+	value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore')
+	value = unicode(re.sub('[^\w\s-]', '', value).strip().lower())
+	value = unicode(re.sub('[-\s]+', '-', value))
+	return value
+
+def we_to_filename(we):
+	return '%s - '%we['_id'] + slugify(we['name'])
 
 # SCRIPT
 
@@ -85,31 +101,49 @@ db = client['hyphe_' + settings['corpus_id']]
 
 # Web entities
 wes_csv_filename = settings['output_path']+'/'+settings['corpus_id']+'/webentities.csv'
+checkPath(wes_csv_filename)
+page_index = {}
+wes_csv_filename = settings['output_path']+'/'+settings['corpus_id']+'/webentities.csv'
 we_status = []
 we_status +=['IN'] if settings['webentities_in'] else []
 we_status +=['OUT'] if settings['webentities_out'] else []
 we_status +=['UNDECIDED'] if settings['webentities_undecided'] else []
 we_status +=['DISCOVERED'] if settings['webentities_discovered'] else []
-wes = []
+wes_all = []
 for status in we_status :
-	print('Retrieving webentity of status %s'%status)
+	print('')
+	print('%s web entities'%status)
+	print('----------------------------------------')
+	wes = []
 	res = hyphe_api.store.get_webentities_by_status(status, None, 500, 0, 'false', 'false', settings['corpus_id'])['result']
-	print('---------')
-	print(res)
 	wes += res['webentities']
 	while res['next_page']:
 	    res = hyphe_api.store.get_webentities_page(res['token'], res['next_page'], settings['corpus_id'])['result']
 	    wes += res['webentities']
-	print("...Retrieved %s web entities"%(len(wes)))
+	we_total = len(wes)
+	print('-> %s web entities to process'%we_total)
+	we_current = 0
+	for we in wes:
+		we_current += 1
+		we_pages = hyphe_api.store.get_webentity_pages(we['id'], True, settings['corpus_id'])
+		if (we_pages['code'] == 'fail'):
+			print("ERROR with pages for WE %s: %s" % (we['id'], we_pages['message']))
+		else :
+			for page in we_pages['result']:
+				page_index[page['lru']] = we['_id']
+		if we_current%100 == 0 :
+			print('%s web entities processed'%we_current)
+	print('-> All %s web entities processed.'%status)
+	wes_all += wes
 
-for we in wes:
-	pages = hyphe_api.store.get_webentity_pages(we['id'], True, settings['corpus_id'])
-	if (pages['code'] == 'fail'):
-		print("ERROR with pages for WE %s: %s" % (we['id'], pages['message']))
-	print('Pages:')
-	print(pages)
+print('')
+print('Building Web entities CSV...')
+with open(wes_csv_filename, mode='wb') as we_file:
+	we_writer = csv.writer(we_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
+	we_writer.writerow(we_metadata+['folder'])
+	for we in wes_all:
+		processWE(we_writer, we)
 
-# print('Building Web entities CSV...')
 # wes = db.webentities
 # wes_csv_filename = settings['output_path']+'/'+settings['corpus_id']+'/webentities.csv'
 # checkPath(wes_csv_filename)
@@ -121,16 +155,15 @@ for we in wes:
 # 		processWE(we_writer, we)
 
 # Pages
+print('')
 print('Building Pages CSV...')
 pages = db.pages
 pages_csv_filename = settings['output_path']+'/'+settings['corpus_id']+'/pages.csv'
 checkPath(pages_csv_filename)
-
 with open(pages_csv_filename, mode='wb') as page_file:
 	page_writer = csv.writer(page_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
 	page_writer.writerow(page_metadata+['path'])
 	for page in pages.find():
-
 		processPage(page_writer, page)
 
 print('Done.')
