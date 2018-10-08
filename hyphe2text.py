@@ -84,16 +84,15 @@ client = MongoClient('localhost', settings['mongodb_port'])
 db = client['hyphe_' + settings['corpus_id']]
 
 # Web entities
-
+wes_csv_filename = settings['output_path']+'/'+settings['corpus_id']+'/webentities.csv'
 we_status = []
 we_status +=['IN'] if settings['webentities_in'] else []
 we_status +=['OUT'] if settings['webentities_out'] else []
 we_status +=['UNDECIDED'] if settings['webentities_undecided'] else []
 we_status +=['DISCOVERED'] if settings['webentities_discovered'] else []
-print('Getting web entities of status:')
-print(we_status)
 wes = []
 for status in we_status :
+	print('Retrieving webentity of status %s'%status)
 	res = hyphe_api.store.get_webentities_by_status(status, None, 500, 0, 'false', 'false', settings['corpus_id'])['result']
 	print('---------')
 	print(res)
@@ -104,7 +103,11 @@ for status in we_status :
 	print("...Retrieved %s web entities"%(len(wes)))
 
 for we in wes:
-	print(we)
+	pages = hyphe_api.store.get_webentity_pages(we['id'], True, settings['corpus_id'])
+	if (pages['code'] == 'fail'):
+		print("ERROR with pages for WE %s: %s" % (we['id'], pages['message']))
+	print('Pages:')
+	print(pages)
 
 # print('Building Web entities CSV...')
 # wes = db.webentities
