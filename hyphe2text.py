@@ -54,8 +54,11 @@ def processWE(we_writer, we):
 	elements += [we_to_filename(we)]
 	we_writer.writerow(elements)
 
-def processPage(page_writer, page):
+def processPage(page_writer, page, page_index, we_index):
 	elements = [page[k] if k in page else '' for k in page_metadata]
+	we_id = page_index[page['lru']]
+	we = we_index[we_id]
+	elements += [we_id, we['name'], we['status'], we_to_filename(we)+'/'+slugify(page['lru'])]
 	page_writer.writerow(elements)
 
 def checkPath(filename):
@@ -103,6 +106,7 @@ db = client['hyphe_' + settings['corpus_id']]
 wes_csv_filename = settings['output_path']+'/'+settings['corpus_id']+'/webentities.csv'
 checkPath(wes_csv_filename)
 page_index = {}
+we_index = {}
 wes_csv_filename = settings['output_path']+'/'+settings['corpus_id']+'/webentities.csv'
 we_status = []
 we_status +=['IN'] if settings['webentities_in'] else []
@@ -132,7 +136,7 @@ for status in we_status :
 			for page in we_pages['result']:
 				page_index[page['lru']] = we['_id']
 		if we_current%100 == 0 :
-			print('%s web entities processed'%we_current)
+			print('... %s web entities processed'%we_current)
 	print('-> All %s web entities processed.'%status)
 	wes_all += wes
 
@@ -143,16 +147,7 @@ with open(wes_csv_filename, mode='wb') as we_file:
 	we_writer.writerow(we_metadata+['folder'])
 	for we in wes_all:
 		processWE(we_writer, we)
-
-# wes = db.webentities
-# wes_csv_filename = settings['output_path']+'/'+settings['corpus_id']+'/webentities.csv'
-# checkPath(wes_csv_filename)
-
-# with open(wes_csv_filename, mode='wb') as we_file:
-# 	we_writer = csv.writer(we_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
-# 	we_writer.writerow(we_metadata+['path'])
-# 	for we in wes.find():
-# 		processWE(we_writer, we)
+		we_index[we['_id']] = we
 
 # Pages
 print('')
@@ -162,8 +157,16 @@ pages_csv_filename = settings['output_path']+'/'+settings['corpus_id']+'/pages.c
 checkPath(pages_csv_filename)
 with open(pages_csv_filename, mode='wb') as page_file:
 	page_writer = csv.writer(page_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
-	page_writer.writerow(page_metadata+['path'])
+	page_writer.writerow(page_metadata+['webentity id', 'webentity name', 'webentity status', 'text file path'])
+	page_count = pages.count()
+	print('-> %s pages to process'%page_count)
+	page_current = 0
 	for page in pages.find():
-		processPage(page_writer, page)
+		page_current += 1
+		processPage(page_writer, page, page_index, we_index)
+		if page_current%1000 == 0 :
+			print('... %s pages processed'%page_current)
+	print('-> All pages processed.')
 
-print('Done.')
+print('')
+print('\O/ IT WORKED!')
