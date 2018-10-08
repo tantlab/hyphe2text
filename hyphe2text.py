@@ -1,13 +1,21 @@
 # -*- coding: utf-8 -*-
 
+import sys
+import jsonrpclib
 import pymongo
 import csv
 import os
 
 settings = {
-	'port': 27017,
+	'mongodb_port': 27017,
+	'hyphe_url': 'localhost/api/',
+	'hyphe_port': '80',
 	'corpus_id': 'gearnews',
-	'output_path': 'data' # Note: a folder named as the corpus id will be created
+	'webentities_in': True,
+	'webentities_out': True,
+	'webentities_undecided': True,
+	'webentities_discovered': False,
+	'output_path': 'data', # Note: a folder named as the corpus id will be created
 }
 
 we_metadata = [
@@ -57,21 +65,57 @@ def checkPath(filename):
 	            raise
 
 # SCRIPT
+
+# Hyphe connect
+try:
+	hyphe_api=jsonrpclib.Server('http://%s:%s'%(settings['hyphe_url'], settings['hyphe_port']), version=1)
+except Exception as e:
+    sys.stderr.write("%s: %s\n" % (type(e), e))
+    sys.stderr.write('ERROR: Could not initiate connection to hyphe core\n')
+    sys.exit(1)
+res = hyphe_api.ping(settings['corpus_id'], 10)
+if "message" in res:
+	sys.stderr.write("ERROR: please start or create corpus %s before indexing it: %s\n" % (settings['corpus_id'], res['message']))
+	sys.exit(1)
+
+# MongoDB connect
 from pymongo import MongoClient
-client = MongoClient('localhost', settings['port'])
+client = MongoClient('localhost', settings['mongodb_port'])
 db = client['hyphe_' + settings['corpus_id']]
 
 # Web entities
-print('Building Web entities CSV...')
-wes = db.webentities
-wes_csv_filename = settings['output_path']+'/'+settings['corpus_id']+'/webentities.csv'
-checkPath(wes_csv_filename)
 
-with open(wes_csv_filename, mode='wb') as we_file:
-	we_writer = csv.writer(we_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
-	we_writer.writerow(we_metadata+['path'])
-	for we in wes.find():
-		processWE(we_writer, we)
+we_status = []
+we_status +=['IN'] if settings['webentities_in'] else []
+we_status +=['OUT'] if settings['webentities_out'] else []
+we_status +=['UNDECIDED'] if settings['webentities_undecided'] else []
+we_status +=['DISCOVERED'] if settings['webentities_discovered'] else []
+print('Getting web entities of status:')
+print(we_status)
+wes = []
+for status in we_status :
+	res = hyphe_api.store.get_webentities_by_status(status, None, 500, 0, 'false', 'false', settings['corpus_id'])['result']
+	print('---------')
+	print(res)
+	wes += res['webentities']
+	while res['next_page']:
+	    res = hyphe_api.store.get_webentities_page(res['token'], res['next_page'], settings['corpus_id'])['result']
+	    wes += res['webentities']
+	print("...Retrieved %s web entities"%(len(wes)))
+
+for we in wes:
+	print(we)
+
+# print('Building Web entities CSV...')
+# wes = db.webentities
+# wes_csv_filename = settings['output_path']+'/'+settings['corpus_id']+'/webentities.csv'
+# checkPath(wes_csv_filename)
+
+# with open(wes_csv_filename, mode='wb') as we_file:
+# 	we_writer = csv.writer(we_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
+# 	we_writer.writerow(we_metadata+['path'])
+# 	for we in wes.find():
+# 		processWE(we_writer, we)
 
 # Pages
 print('Building Pages CSV...')

@@ -1,11 +1,25 @@
 # hyphe2text
 Python scripts to extract text from Hyphe's MongoDB
 
+## dependencies
+
+### HYPHE
+
+This script relies on an existing Hyphe server running.
+see https://github.com/medialab/Hypertext-Corpus-Initiative
+
+### Python requirements
+
+pymongo
+
 ## Install
 
-Dependencies: PyMongo
+git clone this repository
+
+Then just execute:
+
 ```
-pip install pymongo
+$ pip install -r requirements.txt
 ```
 
 ## Run the script
@@ -37,4 +51,11 @@ $  docker-compose restart
 ```
 
 ### 2. Edit the config file to match your situation
-TODO
+_TODO_
+
+### 3. Run Hyphe and open the corpus
+
+The MongoDB can be mined without the corpus running, however only Hyphe's core knows whose webentity is each page. The script queries Hyphe's corpus via the API, hence it must be switched on.
+
+### 4. Run the script
+_TODO_
