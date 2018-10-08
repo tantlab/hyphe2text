@@ -10,6 +10,19 @@ settings = {
 	'output_path': 'data' # Note: a folder named as the corpus id will be created
 }
 
+we_metadata = [
+	'_id',
+	'name',
+	'status',
+	'crawled',
+	'prefixes',
+	'homepage',
+	'startpages',
+	'lastModificationDate',
+	'creationDate',
+	'tags',
+]
+
 page_metadata = [
 	'_id',
 	'url',
@@ -27,8 +40,11 @@ page_metadata = [
 ]
 
 # FUNCTIONS
+def processWE(we_writer, we):
+	elements = [we[k] if k in we else '' for k in we_metadata]
+	we_writer.writerow(elements)
+
 def processPage(page_writer, page):
-	print('Parsing ' + page['url'])
 	elements = [page[k] if k in page else '' for k in page_metadata]
 	page_writer.writerow(elements)
 
@@ -44,8 +60,22 @@ def checkPath(filename):
 from pymongo import MongoClient
 client = MongoClient('localhost', settings['port'])
 db = client['hyphe_' + settings['corpus_id']]
-pages = db.pages
 
+# Web entities
+print('Building Web entities CSV...')
+wes = db.webentities
+wes_csv_filename = settings['output_path']+'/'+settings['corpus_id']+'/webentities.csv'
+checkPath(wes_csv_filename)
+
+with open(wes_csv_filename, mode='wb') as we_file:
+	we_writer = csv.writer(we_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
+	we_writer.writerow(we_metadata+['path'])
+	for we in wes.find():
+		processWE(we_writer, we)
+
+# Pages
+print('Building Pages CSV...')
+pages = db.pages
 pages_csv_filename = settings['output_path']+'/'+settings['corpus_id']+'/pages.csv'
 checkPath(pages_csv_filename)
 
@@ -56,3 +86,4 @@ with open(pages_csv_filename, mode='wb') as page_file:
 
 		processPage(page_writer, page)
 
+print('Done.')
