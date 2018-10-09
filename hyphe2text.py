@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
 
 import sys
+import math
 import jsonrpclib
 import pymongo
 import csv
 import os
 import re
+import goose
+from math import floor
 
 settings = {
 	'mongodb_port': 27017,
@@ -15,10 +18,11 @@ settings = {
 	'webentities_in': True,
 	'webentities_out': True,
 	'webentities_undecided': True,
-	'webentities_discovered': True,
+	'webentities_discovered': False,
 	'output_path': 'data', # Note: a folder named as the corpus id will be created
 }
 
+# METADATA SETTINGS
 we_metadata = [
 	'_id',
 	'name',
@@ -55,11 +59,18 @@ def processWE(we_writer, we):
 	we_writer.writerow(elements)
 
 def processPage(page_writer, page, page_index, we_index):
+	body = page["body"].decode('zip')
+	try:
+		body = body.decode(page.get("encoding",""))
+	except Exception :
+		body = body.decode("UTF8","replace")
 	elements = [page[k] if k in page else '' for k in page_metadata]
 	we_id = page_index[page['lru']]
 	we = we_index[we_id]
-	elements += [we_id, we['name'], we['status'], we_to_filename(we)+'/'+slugify(page['lru'])]
+	filename = settings['output_path']+'/'+we_to_filename(we)+'/'+slugify(page['lru'])
+	elements += [we_id, we['name'], we['status'], filename]
 	page_writer.writerow(elements)
+	writePage(body.encode("utf-8"), filename, page['lru'])
 
 def checkPath(filename):
 	if not os.path.exists(os.path.dirname(filename)):
@@ -68,6 +79,23 @@ def checkPath(filename):
 	    except OSError as exc: # Guard against race condition
 	        if exc.errno != errno.EEXIST:
 	            raise
+
+def writePage(html_string, filename, lru):
+	from goose import Goose
+	checkPath(filename)
+	try:
+		extractor = Goose()
+		article = extractor.extract(raw_html=html_string)
+		text = article.cleaned_text
+	except:
+		print('    Text extraction failed for '+lru)
+		text = ''
+	try:
+		with open(filename, 'w', encoding='utf-8') as result:
+			result.write(text)
+	except:
+		print('    Writing file failed for '+lru)
+		# print(text.encode("utf-8"))
 
 def slugify(value):
 	"""
@@ -164,9 +192,10 @@ with open(pages_csv_filename, mode='wb') as page_file:
 	for page in pages.find():
 		page_current += 1
 		processPage(page_writer, page, page_index, we_index)
-		if page_current%1000 == 0 :
-			print('... %s pages processed'%page_current)
+		if page_current%100 == 0 :
+			percent = int(floor(100*page_current/page_count))
+			print('... %s pages processed (%s%%)'%(page_current, percent))
 	print('-> All pages processed.')
 
 print('')
-print('\O/ IT WORKED!')
+print('\\O/ IT WORKED!')

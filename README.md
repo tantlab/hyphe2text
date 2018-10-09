@@ -14,12 +14,28 @@ pymongo
 
 ## Install
 
-git clone this repository
-
-Then just execute:
+Create a virtual env for [Goose](https://github.com/grangier/python-goose) and Hyphe2Text. 
 
 ```
-$ pip install -r requirements.txt
+mkvirtualenv --no-site-packages h2t
+```
+
+Clone the Goose repo, browse to it and install it.
+
+```
+git clone https://github.com/grangier/python-goose.git
+cd python-goose
+pip install -r requirements.txt
+python setup.py install
+cd ..
+```
+
+Then git clone this repository (hyphe2text) and install the requirements in a virtual environment:
+
+```
+git clone https://github.com/tantlab/hyphe2text.git
+cd hyphe2text
+pip install -r requirements.txt
 ```
 
 ## Run the script
@@ -58,4 +74,4 @@ _TODO_
 The MongoDB can be mined without the corpus running, however only Hyphe's core knows whose webentity is each page. The script queries Hyphe's corpus via the API, hence it must be switched on.
 
 ### 4. Run the script
-_TODO_
+python hyphe2text.py
