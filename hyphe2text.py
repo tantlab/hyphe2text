@@ -83,19 +83,19 @@ def checkPath(filename):
 def writePage(html_string, filename, lru):
 	from goose import Goose
 	checkPath(filename)
-	try:
-		extractor = Goose()
-		article = extractor.extract(raw_html=html_string)
-		text = article.cleaned_text
-	except:
-		print('    Text extraction failed for '+lru)
-		text = ''
-	try:
-		with open(filename, 'w', encoding='utf-8') as result:
-			result.write(text)
-	except:
-		print('    Writing file failed for '+lru)
-		# print(text.encode("utf-8"))
+	if html_string:
+		try:
+			extractor = Goose()
+			article = extractor.extract(raw_html=html_string)
+			text = article.cleaned_text
+		except Exception as e:
+			print('    Text extraction failed for %s - %s'%(lru, str(e)))
+			text = ''
+		try:
+			with open(filename, 'w') as result:
+				result.write(text.encode('UTF8'))
+		except Exception as e:
+			print('    Writing file failed for %s - %s'%(lru, str(e)))
 
 def slugify(value):
 	"""
