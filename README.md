@@ -1,20 +1,16 @@
 # hyphe2text
 Python scripts to extract text from Hyphe's MongoDB
 
-## dependencies
-
-### HYPHE
+## You need a Hyphe instance
 
 This script relies on an existing Hyphe server running.
 see https://github.com/medialab/Hypertext-Corpus-Initiative
 
-### Python requirements
-
-pymongo
+The script will retrieve data from that instance and store it on your hard disk drive.
 
 ## Install
 
-Create a virtual env for [Goose](https://github.com/grangier/python-goose) and Hyphe2Text. 
+Create a virtual environment (here named "h2t") for [Goose](https://github.com/grangier/python-goose) and Hyphe2Text. 
 
 ```
 mkvirtualenv --no-site-packages h2t
@@ -30,7 +26,7 @@ python setup.py install
 cd ..
 ```
 
-Then git clone this repository (hyphe2text) and install the requirements in a virtual environment:
+Then git clone this repository (hyphe2text) and install the requirements in the virtual environment:
 
 ```
 git clone https://github.com/tantlab/hyphe2text.git
