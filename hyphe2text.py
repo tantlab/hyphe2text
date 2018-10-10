@@ -67,7 +67,7 @@ def processPage(page_writer, page, page_index, we_index):
 	elements = [page[k] if k in page else '' for k in page_metadata]
 	we_id = page_index[page['lru']]
 	we = we_index[we_id]
-	filename = settings['output_path']+'/'+we_to_filename(we)+'/'+slugify(page['lru'])
+	filename = settings['output_path']+'/'+settings['corpus_id']+'/'+we_to_filename(we)+'/'+slugify(page['lru'])
 	elements += [we_id, we['name'], we['status'], filename]
 	page_writer.writerow(elements)
 	writePage(body.encode("utf-8"), filename, page['lru'])
