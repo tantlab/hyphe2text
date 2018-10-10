@@ -19,7 +19,11 @@ settings = {
 	'webentities_out': True,
 	'webentities_undecided': True,
 	'webentities_discovered': False,
-	'output_path': 'data', # Note: a folder named as the corpus id will be created
+
+	'output_to_folder': True,
+	'output_folder_path': 'data', # Note: a folder named as the corpus id will be created
+
+	'output_to_elasticsearch': True,
 }
 
 # METADATA SETTINGS
@@ -53,24 +57,37 @@ page_metadata = [
 ]
 
 # FUNCTIONS
-def processWE(we_writer, we):
+def write_WE_in_CSV(we_writer, we):
 	elements = [we[k] if k in we else '' for k in we_metadata]
 	elements += [we_to_filename(we)]
 	we_writer.writerow(elements)
 
-def processPage(page_writer, page, page_index, we_index, page_current):
+def parse_page_body(page):
+	from goose import Goose
 	body = page["body"].decode('zip')
 	try:
 		body = body.decode(page.get("encoding",""))
 	except Exception :
 		body = body.decode("UTF8","replace")
+	html_string = body.encode("utf-8")
+	if html_string:
+		try:
+			extractor = Goose()
+			article = extractor.extract(raw_html=html_string)
+			text = article.cleaned_text
+		except Exception as e:
+			print('    Text extraction failed for %s - %s'%(page['lru'], str(e)))
+			text = ''
+		return text
+	else:
+		return ''
+
+def write_page_in_CSV(page_writer, page, page_index, we_index, page_current, page_filename):
 	elements = [page[k] if k in page else '' for k in page_metadata]
 	we_id = page_index[page['lru']]
 	we = we_index[we_id]
-	filename = settings['output_path']+'/'+settings['corpus_id']+'/'+we_to_filename(we)+'/'+str(page_current)+' - '+slugify(page['lru'])[:100]+'.txt'
-	elements += [we_id, we['name'], we['status'], filename]
+	elements += [we_id, we['name'], we['status'], page_filename]
 	page_writer.writerow(elements)
-	writePage(body.encode("utf-8"), filename, page['lru'])
 
 def checkPath(filename):
 	if not os.path.exists(os.path.dirname(filename)):
@@ -80,22 +97,16 @@ def checkPath(filename):
 	        if exc.errno != errno.EEXIST:
 	            raise
 
-def writePage(html_string, filename, lru):
+def write_page_text_file(page, filename):
+	text = parse_page_body(page)
 	from goose import Goose
-	if html_string:
-		try:
-			extractor = Goose()
-			article = extractor.extract(raw_html=html_string)
-			text = article.cleaned_text
-		except Exception as e:
-			print('    Text extraction failed for %s - %s'%(lru, str(e)))
-			text = ''
+	if text:
 		try:
 			checkPath(filename)
 			with open(filename, 'w') as result:
 				result.write(text.encode('UTF8'))
 		except Exception as e:
-			print('    Writing file failed for %s - %s'%(lru, str(e)))
+			print('    Writing file failed for %s - %s'%(page['lru'], str(e)))
 
 def slugify(value):
 	"""
@@ -130,18 +141,18 @@ from pymongo import MongoClient
 client = MongoClient('localhost', settings['mongodb_port'])
 db = client['hyphe_' + settings['corpus_id']]
 
-# Web entities
-wes_csv_filename = settings['output_path']+'/'+settings['corpus_id']+'/webentities.csv'
-checkPath(wes_csv_filename)
+# Web entities: prepare data
 page_index = {}
 we_index = {}
-wes_csv_filename = settings['output_path']+'/'+settings['corpus_id']+'/webentities.csv'
 we_status = []
 we_status +=['IN'] if settings['webentities_in'] else []
 we_status +=['OUT'] if settings['webentities_out'] else []
 we_status +=['UNDECIDED'] if settings['webentities_undecided'] else []
 we_status +=['DISCOVERED'] if settings['webentities_discovered'] else []
 wes_all = []
+if settings['output_to_folder']:
+	wes_csv_filename = settings['output_folder_path']+'/'+settings['corpus_id']+'/webentities.csv'
+	checkPath(wes_csv_filename)
 for status in we_status :
 	print('')
 	print('%s web entities'%status)
@@ -165,37 +176,42 @@ for status in we_status :
 				page_index[page['lru']] = we['_id']
 		if we_current%100 == 0 :
 			print('... %s web entities processed'%we_current)
+		we_index[we['_id']] = we
 	print('-> All %s web entities processed.'%status)
 	wes_all += wes
 
-print('')
-print('Building Web entities CSV...')
-with open(wes_csv_filename, mode='wb') as we_file:
-	we_writer = csv.writer(we_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
-	we_writer.writerow(we_metadata+['folder'])
-	for we in wes_all:
-		processWE(we_writer, we)
-		we_index[we['_id']] = we
+# Web entities: write CSV
+if settings['output_to_folder']:
+	print('')
+	print('Building Web entities CSV...')
+	with open(wes_csv_filename, mode='wb') as we_file:
+		we_writer = csv.writer(we_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
+		we_writer.writerow(we_metadata+['folder'])
+		for we in wes_all:
+			write_WE_in_CSV(we_writer, we)
 
-# Pages
-print('')
-print('Building Pages CSV...')
-pages = db.pages
-pages_csv_filename = settings['output_path']+'/'+settings['corpus_id']+'/pages.csv'
-checkPath(pages_csv_filename)
-with open(pages_csv_filename, mode='wb') as page_file:
-	page_writer = csv.writer(page_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
-	page_writer.writerow(page_metadata+['webentity id', 'webentity name', 'webentity status', 'text file path'])
-	page_count = pages.count()
-	print('-> %s pages to process'%page_count)
-	page_current = 0
-	for page in pages.find():
-		page_current += 1
-		processPage(page_writer, page, page_index, we_index, page_current)
-		if page_current%100 == 0 :
-			percent = int(floor(100*page_current/page_count))
-			print('... %s pages processed (%s%%)'%(page_current, percent))
-	print('-> All pages processed.')
+# Pages: write CSV and text files
+if settings['output_to_folder']:
+	print('')
+	print('Building Pages CSV...')
+	pages = db.pages
+	pages_csv_filename = settings['output_folder_path']+'/'+settings['corpus_id']+'/pages.csv'
+	checkPath(pages_csv_filename)
+	with open(pages_csv_filename, mode='wb') as page_file:
+		page_writer = csv.writer(page_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
+		page_writer.writerow(page_metadata+['webentity id', 'webentity name', 'webentity status', 'text file path'])
+		page_count = pages.count()
+		print('-> %s pages to process'%page_count)
+		page_current = 0
+		for page in pages.find():
+			page_current += 1
+			page_filename = settings['output_folder_path']+'/'+settings['corpus_id']+'/'+we_to_filename(we)+'/'+str(page_current)+' - '+slugify(page['lru'])[:100]+'.txt'
+			write_page_in_CSV(page_writer, page, page_index, we_index, page_current, page_filename)
+			write_page_text_file(page, page_filename)
+			if page_current%100 == 0 :
+				percent = int(floor(100*page_current/page_count))
+				print('... %s pages processed (%s%%)'%(page_current, percent))
+		print('-> All pages processed.')
 
 print('')
 print('\\O/ IT WORKED!')
