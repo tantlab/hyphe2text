@@ -58,7 +58,7 @@ def processWE(we_writer, we):
 	elements += [we_to_filename(we)]
 	we_writer.writerow(elements)
 
-def processPage(page_writer, page, page_index, we_index):
+def processPage(page_writer, page, page_index, we_index, page_current):
 	body = page["body"].decode('zip')
 	try:
 		body = body.decode(page.get("encoding",""))
@@ -67,7 +67,7 @@ def processPage(page_writer, page, page_index, we_index):
 	elements = [page[k] if k in page else '' for k in page_metadata]
 	we_id = page_index[page['lru']]
 	we = we_index[we_id]
-	filename = settings['output_path']+'/'+settings['corpus_id']+'/'+we_to_filename(we)+'/'+slugify(page['lru'])
+	filename = settings['output_path']+'/'+settings['corpus_id']+'/'+we_to_filename(we)+'/'+str(page_current)+' - '+slugify(page['lru'])[:100]+'.txt'
 	elements += [we_id, we['name'], we['status'], filename]
 	page_writer.writerow(elements)
 	writePage(body.encode("utf-8"), filename, page['lru'])
@@ -82,7 +82,6 @@ def checkPath(filename):
 
 def writePage(html_string, filename, lru):
 	from goose import Goose
-	checkPath(filename)
 	if html_string:
 		try:
 			extractor = Goose()
@@ -92,6 +91,7 @@ def writePage(html_string, filename, lru):
 			print('    Text extraction failed for %s - %s'%(lru, str(e)))
 			text = ''
 		try:
+			checkPath(filename)
 			with open(filename, 'w') as result:
 				result.write(text.encode('UTF8'))
 		except Exception as e:
@@ -191,7 +191,7 @@ with open(pages_csv_filename, mode='wb') as page_file:
 	page_current = 0
 	for page in pages.find():
 		page_current += 1
-		processPage(page_writer, page, page_index, we_index)
+		processPage(page_writer, page, page_index, we_index, page_current)
 		if page_current%100 == 0 :
 			percent = int(floor(100*page_current/page_count))
 			print('... %s pages processed (%s%%)'%(page_current, percent))
