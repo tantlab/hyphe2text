@@ -1,10 +1,14 @@
 # hyphe2text
 Python scripts to extract text from Hyphe's MongoDB
 
+This script has two modes:
+* Index the text as a bunch of files
+* Index it in an ElasticSearch
+You can do each or both at the same time.
+
 ## You need a Hyphe instance
 
-This script relies on an existing Hyphe server running.
-see https://github.com/medialab/Hypertext-Corpus-Initiative
+This script relies on an existing Hyphe server running. See [Hyphe's repository](https://github.com/medialab/hyphe).
 
 The script will retrieve data from that instance and store it on your hard disk drive.
 
@@ -67,7 +71,10 @@ _TODO_
 
 ### 3. Run Hyphe and open the corpus
 
-The MongoDB can be mined without the corpus running, however only Hyphe's core knows whose webentity is each page. The script queries Hyphe's corpus via the API, hence it must be switched on.
+Hyphe's MongoDB can be mined without the corpus running, however only Hyphe's [Traph](https://github.com/medialab/hyphe-traph) knows to which webentity each page belongs. The script queries Hyphe's corpus via the API, hence it must be switched on.
 
 ### 4. Run the script
+```
 python hyphe2text.py
+```
+Be patient!

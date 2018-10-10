@@ -8,11 +8,11 @@ import csv
 import os
 import re
 import goose
-from math import floor
+import elasticsearch
 
 settings = {
 	'mongodb_port': 27017,
-	'hyphe_url': 'localhost/api/',
+	'hyphe_host': 'localhost/api/',
 	'hyphe_port': '80',
 	'corpus_id': 'gearnews',
 	'webentities_in': True,
@@ -20,10 +20,12 @@ settings = {
 	'webentities_undecided': True,
 	'webentities_discovered': False,
 
-	'output_to_folder': True,
+	'output_to_folder': False,
 	'output_folder_path': 'data', # Note: a folder named as the corpus id will be created
 
-	'output_to_elasticsearch': True,
+	'output_to_elasticsearch': True, # Note: ES index is named as corpus id
+	'elasticsearch_host': 'localhost',
+	'elasticsearch_port': '9200',
 }
 
 # METADATA SETTINGS
@@ -126,7 +128,7 @@ def we_to_filename(we):
 
 # Hyphe connect
 try:
-	hyphe_api=jsonrpclib.Server('http://%s:%s'%(settings['hyphe_url'], settings['hyphe_port']), version=1)
+	hyphe_api=jsonrpclib.Server('http://%s:%s'%(settings['hyphe_host'], settings['hyphe_port']), version=1)
 except Exception as e:
     sys.stderr.write("%s: %s\n" % (type(e), e))
     sys.stderr.write('ERROR: Could not initiate connection to hyphe core\n')
@@ -183,17 +185,30 @@ for status in we_status :
 # Web entities: write CSV
 if settings['output_to_folder']:
 	print('')
-	print('Building Web entities CSV...')
+	print('Building web entities CSV...')
 	with open(wes_csv_filename, mode='wb') as we_file:
 		we_writer = csv.writer(we_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
 		we_writer.writerow(we_metadata+['folder'])
 		for we in wes_all:
 			write_WE_in_CSV(we_writer, we)
 
+# Web entitites: store in ES
+if settings['output_to_elasticsearch']:
+	print('')
+	print('Storing web entities in Elastic Search...')
+	es = elasticsearch.Elasticsearch([{'host': settings['elasticsearch_host'], 'port': settings['elasticsearch_port']}])
+	es.indices.delete(index=settings['corpus_id'], ignore=[400, 404])
+	we_current = 0
+	for we in wes_all:
+		we_es = we.copy()
+		we_es['id'] = we_es.pop('_id', None)
+		we_es['type'] = 'webentity'
+		es.index(index=settings['corpus_id'], doc_type='doc', id=we_es['id'], body=we_es)
+
 # Pages: write CSV and text files
 if settings['output_to_folder']:
 	print('')
-	print('Building Pages CSV...')
+	print('Building pages CSV...')
 	pages = db.pages
 	pages_csv_filename = settings['output_folder_path']+'/'+settings['corpus_id']+'/pages.csv'
 	checkPath(pages_csv_filename)
@@ -209,9 +224,30 @@ if settings['output_to_folder']:
 			write_page_in_CSV(page_writer, page, page_index, we_index, page_current, page_filename)
 			write_page_text_file(page, page_filename)
 			if page_current%100 == 0 :
-				percent = int(floor(100*page_current/page_count))
+				percent = int(math.floor(100*page_current/page_count))
 				print('... %s pages processed (%s%%)'%(page_current, percent))
 		print('-> All pages processed.')
+
+# Pages: store in ES
+if settings['output_to_elasticsearch']:
+	print('')
+	print('Storing pages in Elastic Search...')
+	pages = db.pages
+	page_count = pages.count()
+	print('-> %s pages to process'%page_count)
+	page_current = 0
+	for page in pages.find():
+		page_current += 1
+		page_es = page.copy()
+		page_es.pop('_id', None)
+		page_es.pop('body', None)
+		page_es['type'] = 'page'
+		page_es['text'] = parse_page_body(page)
+		es.index(index=settings['corpus_id'], doc_type='doc', id=page_es['lru'], body=page_es)
+		if page_current%100 == 0 :
+			percent = int(math.floor(100*page_current/page_count))
+			print('... %s pages processed (%s%%)'%(page_current, percent))
+	print('-> All pages processed.')
 
 print('')
 print('\\O/ IT WORKED!')
