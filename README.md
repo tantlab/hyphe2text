@@ -1,11 +1,9 @@
 # Hyphe2Text
 Python scripts to extract text from Hyphe's MongoDB
 
-This script has two modes:
-* Index the text as a bunch of files
-* Index it in an ElasticSearch
-
-You can do each or both at the same time.
+Choose one or both:
+1. Extract pages' text and save it as a bunch of **files**
+2. Index text in **ElasticSearch**
 
 ## You need a Hyphe instance
 
