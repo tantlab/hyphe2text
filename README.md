@@ -1,9 +1,10 @@
-# hyphe2text
+# Hyphe2Text
 Python scripts to extract text from Hyphe's MongoDB
 
 This script has two modes:
 * Index the text as a bunch of files
 * Index it in an ElasticSearch
+
 You can do each or both at the same time.
 
 ## You need a Hyphe instance
@@ -14,7 +15,7 @@ The script will retrieve data from that instance and store it on your hard disk 
 
 ## Install
 
-Create a virtual environment (here named "h2t") for [Goose](https://github.com/grangier/python-goose) and Hyphe2Text. 
+Create a virtual environment (here named "h2t") for [Goose](https://github.com/grangier/python-goose) (the text extraction library) and Hyphe2Text. 
 
 ```
 mkvirtualenv --no-site-packages h2t
@@ -44,7 +45,7 @@ pip install -r requirements.txt
 
 A port to Hyphe's MongoDB has to be open. The usual port is 27017 and you can check it by looking at ```http://localhost:27017```.
 
-_In the case of a Docker install_ you probably have to edit the configuration to open the port. Open the file ```docker-compose.yml``` and in the part related to MongoDB, add the following lines:
+**In the case of a Docker install** you probably have to edit the configuration to open the port. Open the file ```docker-compose.yml``` and in the part related to MongoDB, add the following lines:
 ```yml
     ports:
       - "27017:27017"
@@ -67,7 +68,7 @@ $  docker-compose restart
 ```
 
 ### 2. Edit the config file to match your situation
-_TODO_
+_TO DO: write the config info. Also, create the config file. Upcoming!_
 
 ### 3. Run Hyphe and open the corpus
 
@@ -77,4 +78,4 @@ Hyphe's MongoDB can be mined without the corpus running, however only Hyphe's [T
 ```
 python hyphe2text.py
 ```
-Be patient!
+It takes some time; be patient!
