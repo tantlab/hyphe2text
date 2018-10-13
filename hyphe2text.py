@@ -244,7 +244,10 @@ if settings['output_to_elasticsearch']:
 		page_es.pop('body', None)
 		page_es['type'] = 'page'
 		page_es['text'] = parse_page_body(page)
-		es.index(index=settings['elasticsearch_index'] if settings['elasticsearch_index'] else settings['corpus_id'], doc_type='doc', id=page_es['lru'], body=page_es)
+		try:
+			es.index(index=settings['elasticsearch_index'] if settings['elasticsearch_index'] else settings['corpus_id'], doc_type='doc', id=page_es['lru'], body=page_es)
+		except Exception as e:
+			print('    Indexing page file failed for %s - %s'%(page_es['lru'], str(e)))
 		if page_current%100 == 0 :
 			percent = int(math.floor(100*page_current/page_count))
 			print('... %s pages processed (%s%%)'%(page_current, percent))
