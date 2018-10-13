@@ -237,7 +237,8 @@ if settings['output_to_elasticsearch']:
 	page_count = pages.count()
 	print('-> %s pages to process'%page_count)
 	page_current = 0
-	for page in pages.find():
+	cursor=pages.find(no_cursor_timeout=True)
+	for page in cursor:
 		page_current += 1
 		page_es = page.copy()
 		page_es.pop('_id', None)
@@ -251,6 +252,7 @@ if settings['output_to_elasticsearch']:
 		if page_current%100 == 0 :
 			percent = int(math.floor(100*page_current/page_count))
 			print('... %s pages processed (%s%%)'%(page_current, percent))
+	cursor.close()
 	print('-> All pages processed.')
 
 print('')
