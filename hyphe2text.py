@@ -14,18 +14,19 @@ settings = {
 	'mongodb_port': 27017,
 	'hyphe_host': 'localhost/api/',
 	'hyphe_port': '80',
-	'corpus_id': 'gearnews',
+	'corpus_id': 'nordic-design',
 	'webentities_in': True,
-	'webentities_out': True,
-	'webentities_undecided': True,
+	'webentities_out': False,
+	'webentities_undecided': False,
 	'webentities_discovered': False,
 
 	'output_to_folder': False,
 	'output_folder_path': 'data', # Note: a folder named as the corpus id will be created
 
-	'output_to_elasticsearch': True, # Note: ES index is named as corpus id
+	'output_to_elasticsearch': True,
 	'elasticsearch_host': 'localhost',
 	'elasticsearch_port': '9200',
+	'elasticsearch_index': 'nordic-design-d2', # If '' then ES index is named as corpus id
 }
 
 # METADATA SETTINGS
@@ -243,7 +244,7 @@ if settings['output_to_elasticsearch']:
 		page_es.pop('body', None)
 		page_es['type'] = 'page'
 		page_es['text'] = parse_page_body(page)
-		es.index(index=settings['corpus_id'], doc_type='doc', id=page_es['lru'], body=page_es)
+		es.index(index=settings['elasticsearch_index'] if settings['elasticsearch_index'] else settings['corpus_id'], doc_type='doc', id=page_es['lru'], body=page_es)
 		if page_current%100 == 0 :
 			percent = int(math.floor(100*page_current/page_count))
 			print('... %s pages processed (%s%%)'%(page_current, percent))
