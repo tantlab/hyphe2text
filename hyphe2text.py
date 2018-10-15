@@ -27,7 +27,7 @@ settings = {
 	'elasticsearch_host': 'localhost',
 	'elasticsearch_port': '9200',
 	'elasticsearch_index': '', # If '' then ES index is named as corpus id
-	'elasticsearch_skip_pages_logged_as_indexing_success': False,
+	'elasticsearch_skip_pages_logged_as_indexing_success': True,
 	'elasticsearch_skip_pages_logged_as_indexing_fail': False,
 }
 
@@ -267,23 +267,27 @@ if settings['output_to_elasticsearch']:
 		for page in cursor:
 			page_current += 1
 			if not (skip_page and page['lru'] in skip_page):
-				page_es = page.copy()
-				page_es.pop('_id', None)
-				page_es.pop('body', None)
-				page_es['type'] = 'page'
-				page_es['text'] = parse_page_body(page)
-				we_id = page_index[page['lru']]
-				we = we_index[we_id]
-				page_es['webentity'] = we_id
-				page_es['webentity_name'] = we['name']
-				page_es['webentity_status'] = we['status']
-				page_indexing_status='pending'
-				try:
-					es.index(index=es_index_id, doc_type='doc', id=page_es['lru'], body=page_es)
-					page_indexing_status='success'
-				except Exception as e:
-					print('    Indexing page file failed for %s - %s'%(page_es['lru'], str(e)))
-					page_indexing_status='indexing error - %s'%str(e)
+				if page['lru'] in page_index:
+					page_es = page.copy()
+					page_es.pop('_id', None)
+					page_es.pop('body', None)
+					page_es['type'] = 'page'
+					page_es['text'] = parse_page_body(page)
+					we_id = page_index[page['lru']]
+					we = we_index[we_id]
+					page_es['webentity'] = we_id
+					page_es['webentity_name'] = we['name']
+					page_es['webentity_status'] = we['status']
+					page_indexing_status='pending'
+					try:
+						es.index(index=es_index_id, doc_type='doc', id=page_es['lru'], body=page_es)
+						page_indexing_status='success'
+					except Exception as e:
+						print('    Indexing page file failed for %s - %s'%(page_es['lru'], str(e)))
+						page_indexing_status='indexing error - %s'%str(e)
+				else:
+					print('    Page with unknown web entity - %s'%(page['lru']))
+					page_indexing_status='error - unknown web entity'
 				log_page_indexing_status(page_indexing_log_writer, page, page_indexing_status)
 			if page_current%100 == 0 :
 				percent = int(math.floor(100*page_current/page_count))
