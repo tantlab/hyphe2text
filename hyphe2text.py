@@ -27,6 +27,8 @@ settings = {
 	'elasticsearch_host': 'localhost',
 	'elasticsearch_port': '9200',
 	'elasticsearch_index': 'nordic-design-d2', # If '' then ES index is named as corpus id
+	'elasticsearch_skip_pages_logged_as_indexing_success': True,
+	'elasticsearch_skip_pages_logged_as_indexing_fail': True,
 }
 
 # METADATA SETTINGS
@@ -236,9 +238,23 @@ if settings['output_to_folder']:
 
 # Pages: store in ES
 if settings['output_to_elasticsearch']:
-	pages_indexing_log_filename = settings['output_folder_path']+'/'+(settings['elasticsearch_index'] if settings['elasticsearch_index'] else settings['corpus_id'])+'/pages_indexing_log.csv'
+	pages_indexing_log_filename = settings['output_folder_path']+'/'+es_index_id+'/pages_indexing_log.csv'
 	checkPath(pages_indexing_log_filename)
-	with open(pages_indexing_log_filename, mode='wb') as page_indexing_log_file:
+	skip_page = False
+	if settings['elasticsearch_skip_pages_logged_as_indexing_success'] or settings['elasticsearch_skip_pages_logged_as_indexing_fail']:
+		skip_page = {}
+		with open(pages_indexing_log_filename, mode='rb') as page_indexing_log_file:
+			page_indexing_log_reader = csv.reader(page_indexing_log_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
+			for row in page_indexing_log_reader:
+				if settings['elasticsearch_skip_pages_logged_as_indexing_success'] and row[1] == 'success':
+					skip_page[row[0]] = True
+				elif settings['elasticsearch_skip_pages_logged_as_indexing_fail']:
+					skip_page[row[0]] = True
+		pages_indexing_log_file_mode = 'ab'
+	else:
+		pages_indexing_log_file_mode = 'wb'
+
+	with open(pages_indexing_log_filename, mode=pages_indexing_log_file_mode) as page_indexing_log_file:
 		page_indexing_log_writer = csv.writer(page_indexing_log_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
 		print('')
 		print('Storing pages in Elastic Search...')
@@ -249,19 +265,20 @@ if settings['output_to_elasticsearch']:
 		cursor=pages.find(no_cursor_timeout=True)
 		for page in cursor:
 			page_current += 1
-			page_es = page.copy()
-			page_es.pop('_id', None)
-			page_es.pop('body', None)
-			page_es['type'] = 'page'
-			page_es['text'] = parse_page_body(page)
-			page_indexing_status='pending'
-			try:
-				es.index(index=es_index_id, doc_type='doc', id=page_es['lru'], body=page_es)
-				page_indexing_status='success'
-			except Exception as e:
-				print('    Indexing page file failed for %s - %s'%(page_es['lru'], str(e)))
-				page_indexing_status='indexing error - %s'%str(e)
-			log_page_indexing_status(page_indexing_log_writer, page, page_indexing_status)
+			if not (skip_page and page['lru'] in skip_page):
+				page_es = page.copy()
+				page_es.pop('_id', None)
+				page_es.pop('body', None)
+				page_es['type'] = 'page'
+				page_es['text'] = parse_page_body(page)
+				page_indexing_status='pending'
+				try:
+					es.index(index=es_index_id, doc_type='doc', id=page_es['lru'], body=page_es)
+					page_indexing_status='success'
+				except Exception as e:
+					print('    Indexing page file failed for %s - %s'%(page_es['lru'], str(e)))
+					page_indexing_status='indexing error - %s'%str(e)
+				log_page_indexing_status(page_indexing_log_writer, page, page_indexing_status)
 			if page_current%100 == 0 :
 				percent = int(math.floor(100*page_current/page_count))
 				print('... %s pages processed (%s%%)'%(page_current, percent))
