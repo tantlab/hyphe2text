@@ -26,9 +26,9 @@ settings = {
 	'output_to_elasticsearch': True,
 	'elasticsearch_host': 'localhost',
 	'elasticsearch_port': '9200',
-	'elasticsearch_index': 'nordic-design-d2', # If '' then ES index is named as corpus id
-	'elasticsearch_skip_pages_logged_as_indexing_success': True,
-	'elasticsearch_skip_pages_logged_as_indexing_fail': True,
+	'elasticsearch_index': '', # If '' then ES index is named as corpus id
+	'elasticsearch_skip_pages_logged_as_indexing_success': False,
+	'elasticsearch_skip_pages_logged_as_indexing_fail': False,
 }
 
 # METADATA SETTINGS
@@ -272,6 +272,11 @@ if settings['output_to_elasticsearch']:
 				page_es.pop('body', None)
 				page_es['type'] = 'page'
 				page_es['text'] = parse_page_body(page)
+				we_id = page_index[page['lru']]
+				we = we_index[we_id]
+				page_es['webentity'] = we_id
+				page_es['webentity_name'] = we['name']
+				page_es['webentity_status'] = we['status']
 				page_indexing_status='pending'
 				try:
 					es.index(index=es_index_id, doc_type='doc', id=page_es['lru'], body=page_es)
