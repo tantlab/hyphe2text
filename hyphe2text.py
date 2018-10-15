@@ -205,7 +205,8 @@ if settings['output_to_elasticsearch']:
 	print('')
 	print('Storing web entities in Elastic Search...')
 	es = elasticsearch.Elasticsearch([{'host': settings['elasticsearch_host'], 'port': settings['elasticsearch_port']}])
-	es.indices.delete(index=es_index_id, ignore=[400, 404])
+	if not (settings['elasticsearch_skip_pages_logged_as_indexing_success'] or settings['elasticsearch_skip_pages_logged_as_indexing_fail']):
+		es.indices.delete(index=es_index_id, ignore=[400, 404])
 	we_current = 0
 	for we in wes_all:
 		we_es = we.copy()
