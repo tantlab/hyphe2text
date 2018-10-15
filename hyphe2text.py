@@ -111,6 +111,10 @@ def write_page_text_file(page, filename):
 		except Exception as e:
 			print('    Writing file failed for %s - %s'%(page['lru'], str(e)))
 
+def log_page_indexing_status(page_indexing_log_writer, page, status):
+	elements = [page['lru'], status]
+	page_indexing_log_writer.writerow(elements)
+
 def slugify(value):
 	"""
 	Normalizes string, converts to lowercase, removes non-alpha characters,
@@ -194,17 +198,18 @@ if settings['output_to_folder']:
 			write_WE_in_CSV(we_writer, we)
 
 # Web entitites: store in ES
+es_index_id = settings['elasticsearch_index'] if settings['elasticsearch_index'] else settings['corpus_id']
 if settings['output_to_elasticsearch']:
 	print('')
 	print('Storing web entities in Elastic Search...')
 	es = elasticsearch.Elasticsearch([{'host': settings['elasticsearch_host'], 'port': settings['elasticsearch_port']}])
-	es.indices.delete(index=settings['corpus_id'], ignore=[400, 404])
+	es.indices.delete(index=es_index_id, ignore=[400, 404])
 	we_current = 0
 	for we in wes_all:
 		we_es = we.copy()
 		we_es['id'] = we_es.pop('_id', None)
 		we_es['type'] = 'webentity'
-		es.index(index=settings['corpus_id'], doc_type='doc', id=we_es['id'], body=we_es)
+		es.index(index=es_index_id, doc_type='doc', id=we_es['id'], body=we_es)
 
 # Pages: write CSV and text files
 if settings['output_to_folder']:
@@ -231,29 +236,37 @@ if settings['output_to_folder']:
 
 # Pages: store in ES
 if settings['output_to_elasticsearch']:
-	print('')
-	print('Storing pages in Elastic Search...')
-	pages = db.pages
-	page_count = pages.count()
-	print('-> %s pages to process'%page_count)
-	page_current = 0
-	cursor=pages.find(no_cursor_timeout=True)
-	for page in cursor:
-		page_current += 1
-		page_es = page.copy()
-		page_es.pop('_id', None)
-		page_es.pop('body', None)
-		page_es['type'] = 'page'
-		page_es['text'] = parse_page_body(page)
-		try:
-			es.index(index=settings['elasticsearch_index'] if settings['elasticsearch_index'] else settings['corpus_id'], doc_type='doc', id=page_es['lru'], body=page_es)
-		except Exception as e:
-			print('    Indexing page file failed for %s - %s'%(page_es['lru'], str(e)))
-		if page_current%100 == 0 :
-			percent = int(math.floor(100*page_current/page_count))
-			print('... %s pages processed (%s%%)'%(page_current, percent))
-	cursor.close()
-	print('-> All pages processed.')
+	pages_indexing_log_filename = settings['output_folder_path']+'/'+(settings['elasticsearch_index'] if settings['elasticsearch_index'] else settings['corpus_id'])+'/pages_indexing_log.csv'
+	checkPath(pages_indexing_log_filename)
+	with open(pages_indexing_log_filename, mode='wb') as page_indexing_log_file:
+		page_indexing_log_writer = csv.writer(page_indexing_log_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_ALL)
+		print('')
+		print('Storing pages in Elastic Search...')
+		pages = db.pages
+		page_count = pages.count()
+		print('-> %s pages to process'%page_count)
+		page_current = 0
+		cursor=pages.find(no_cursor_timeout=True)
+		for page in cursor:
+			page_current += 1
+			page_es = page.copy()
+			page_es.pop('_id', None)
+			page_es.pop('body', None)
+			page_es['type'] = 'page'
+			page_es['text'] = parse_page_body(page)
+			page_indexing_status='pending'
+			try:
+				es.index(index=es_index_id, doc_type='doc', id=page_es['lru'], body=page_es)
+				page_indexing_status='success'
+			except Exception as e:
+				print('    Indexing page file failed for %s - %s'%(page_es['lru'], str(e)))
+				page_indexing_status='indexing error - %s'%str(e)
+			log_page_indexing_status(page_indexing_log_writer, page, page_indexing_status)
+			if page_current%100 == 0 :
+				percent = int(math.floor(100*page_current/page_count))
+				print('... %s pages processed (%s%%)'%(page_current, percent))
+		cursor.close()
+		print('-> All pages processed.')
 
 print('')
 print('\\O/ IT WORKED!')
